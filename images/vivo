@@ -1,0 +1,98 @@
+#!/bin/sh
+
+#prerequis
+
+#jdk installation
+
+ apt-get update
+ apt install default-jdk
+
+#tomcat installation 
+
+groupadd tomcat
+useradd -s /bin/false -g tomcat -d /opt/tomcat tomcat
+mkdir /opt/tomcat
+wget https://downloads.apache.org/tomcat/tomcat-9/v9.0.34/bin/apache-tomcat-9.0.34.tar.gz
+tar xzvf apache-tomcat-9*tar.gz -C /opt/tomcat --strip-components=1
+cd /opt/tomcat
+chgrp -R tomcat /opt/tomcat
+chmod -R g+r conf
+chmod g+x conf
+sudo chown -R tomcat webapps/ work/ temp/ logs/
+
+cat > /etc/systemd/system/tomcat.service <<EOF
+[Unit]
+Description=Apache Tomcat Web Application Container
+After=network.target
+
+[Service]
+Type=forking
+
+Environment=JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64/jre
+Environment=CATALINA_PID=/opt/tomcat/temp/tomcat.pid
+Environment=CATALINA_Home=/opt/tomcat
+Environment=CATALINA_BASE=/opt/tomcat
+Environment=’CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC’
+Environment=’JAVA_OPTS.awt.headless=true -Djava.security.egd=file:/dev/v/urandom’
+
+ExecStart=/opt/tomcat/bin/startup.sh
+ExecStop=/opt/tomcat/bin/shutdown.sh
+
+User=tomcat
+Group=tomcat
+UMask=0007
+RestartSec=10
+Restart=always
+
+[Install]
+
+WantedBy=multi-user.target
+EOF
+
+
+systemctl daemon-reload
+systemctl start tomcat
+ufw allow 8080
+nano /opt/tomcat/conf/tomcat-users.xml
+#<user username="admin" password="password" roles="manager-gui,admin-gui"/>
+
+chown tomcat work
+systemctl restart tomcat
+
+# mysql installation
+apt update
+apt install mysql-server
+systemctl start mysql
+
+
+#maven installation 
+
+apt-get install maven
+
+#vivo installation
+
+wget https://github.com/vivo-project/VIVO/archive/vivo-1.11.1.tar.gz
+tar zxf vivo-1.11.1.tar.gz 
+mv vivo-1.11.1 vivo
+cd vivo/
+mvn install -s installer/example-settings.xml
+#to start vivo, you must first launch the tomcat service, then type the address: http: // vivo: 8080
+
+#creation of Vivo's id
+
+mysql -u root -p <<EOF
+CREATE DATABASE vitrodb CHARACTER SET utf8;
+GRANT ALL ON vitrodb.* TO 'vitrodbUsername'@'localhost' IDENTIFIED BY 'vitrodbPassword';
+EOF
+
+#solr installation 
+
+
+wget http://archive.apache.org/dist/lucene/solr/7.4.0/solr-7.4.0.tgz
+tar zxf solr-7.4.0.tgz 
+cd solr-7.4.0/server/solr/
+wget https://github.com/vivo-community/vivo-solr.git vivocore
+cd ..
+bin/solr start
+#to start Solr type the following address: http: // localhost: 8983
+
